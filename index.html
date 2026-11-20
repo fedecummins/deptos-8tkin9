@@ -1,1 +1,561 @@
-<!DOCTYPE html><meta charset="utf-8"><meta name="robots" content="noindex"><title>Monitor</title><p style="font-family:sans-serif;padding:40px">El monitor todavía no corrió. Volvé después de la primera corrida.</p>
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<meta name="referrer" content="no-referrer">
+<title>Monitor Corredor Norte</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+<style>
+  :root {
+    --bg:#0f1218; --panel:#171b23; --panel2:#1d222c; --li:#2a303c; --tx:#e8eaef; --mu:#8b93a3;
+    --acc:#5b9cf5; --baja:#3ecf8e; --suba:#f2705b; --nuevo:#5b9cf5; --ref:#e0b04a;
+  }
+  * { box-sizing:border-box }
+  body { margin:0; font:14px/1.45 -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif; background:var(--bg); color:var(--tx) }
+  a { color:inherit }
+  header { padding:26px 28px 6px; display:flex; justify-content:space-between; align-items:flex-start; gap:16px; flex-wrap:wrap }
+  h1 { font-size:22px; margin:0; color:var(--acc); letter-spacing:-.01em }
+  .sub { color:var(--mu); font-size:13px; margin-top:4px }
+  .fecha { color:var(--mu); font-size:13px; text-align:right }
+  .kpis { display:grid; grid-template-columns:repeat(4, 1fr); gap:12px; padding:14px 28px }
+  .kpi { background:var(--panel); border:1px solid var(--li); border-radius:12px; padding:14px 16px }
+  .kpi span { display:block; color:var(--mu); font-size:11px; text-transform:uppercase; letter-spacing:.06em }
+  .kpi b { display:block; font-size:24px; color:var(--acc); margin-top:4px; font-variant-numeric:tabular-nums }
+  nav { display:flex; gap:4px; padding:4px 28px 0; border-bottom:1px solid var(--li); margin:0 28px; padding-left:0 }
+  nav button { background:none; border:0; color:var(--mu); font:inherit; padding:10px 14px; cursor:pointer; border-bottom:2px solid transparent; margin-bottom:-1px }
+  nav button.on { color:var(--tx); border-bottom-color:var(--acc) }
+  nav .cnt { font-size:11px; background:var(--panel2); border-radius:10px; padding:1px 7px; margin-left:5px; color:var(--mu) }
+  .filtros { padding:14px 28px 4px; display:flex; flex-direction:column; gap:10px }
+  .fila-chips { display:flex; flex-wrap:wrap; gap:6px; align-items:center }
+  .fila-chips > label { color:var(--mu); font-size:11px; text-transform:uppercase; letter-spacing:.06em; min-width:64px }
+  .chip { background:var(--panel); color:var(--tx); border:1px solid var(--li); border-radius:8px; padding:6px 11px; font:inherit; font-size:13px; cursor:pointer; white-space:nowrap }
+  .chip.on { background:var(--acc); border-color:var(--acc); color:#fff }
+  .chip .n { opacity:.65; font-size:11px; margin-left:4px }
+  .toggle-filtros { display:none; align-self:flex-start }
+  .buscar { background:var(--panel); color:var(--tx); border:1px solid var(--li); border-radius:8px; padding:7px 11px; font:inherit; min-width:220px }
+  main { padding:12px 28px 40px }
+  .grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(270px, 1fr)); gap:16px }
+  .card { background:var(--panel); border:1px solid var(--li); border-radius:12px; overflow:hidden; cursor:pointer; display:flex; flex-direction:column; transition:border-color .15s }
+  .card:hover { border-color:var(--acc) }
+  .card.inactivo { opacity:.5 }
+  .foto { position:relative; aspect-ratio:16/10; background:var(--panel2) center/cover no-repeat }
+  .foto img { width:100%; height:100%; object-fit:cover; display:block }
+  .foto .sin { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; color:var(--mu); font-size:12px }
+  .foto .badges { position:absolute; left:8px; top:8px; right:84px; display:flex; gap:5px; flex-wrap:wrap }
+  .foto .nfotos { position:absolute; right:8px; bottom:8px; background:rgba(0,0,0,.6); color:#fff; font-size:11px; border-radius:6px; padding:2px 7px }
+  .b { font-size:10.5px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; padding:3px 7px; border-radius:6px; background:rgba(15,18,24,.82); color:#fff }
+  .b.baja { background:var(--baja); color:#062b1b } .b.suba { background:var(--suba) } .b.nuevo { background:var(--nuevo) } .b.ref { background:var(--ref); color:#2a1e00 }
+  .cuerpo { padding:12px 14px 14px; display:flex; flex-direction:column; gap:6px; flex:1 }
+  .precio { font-size:22px; font-weight:700; color:var(--acc); font-variant-numeric:tabular-nums; display:flex; align-items:baseline; gap:8px; flex-wrap:wrap }
+  .precio s { font-size:13px; color:var(--mu); font-weight:400 }
+  .var { font-size:13px; font-weight:600 } .var.baja { color:var(--baja) } .var.suba { color:var(--suba) }
+  .dir { font-weight:600 }
+  .meta { color:var(--mu); font-size:12.5px }
+  .feats { display:flex; flex-wrap:wrap; gap:5px }
+  .feat { background:var(--panel2); border-radius:6px; padding:3px 7px; font-size:12px; color:var(--tx) }
+  .pie { margin-top:auto; padding-top:8px; border-top:1px solid var(--li); display:flex; justify-content:space-between; color:var(--mu); font-size:12px }
+  .pie b { color:var(--tx); font-weight:600 }
+  .punto { display:inline-block; width:8px; height:8px; border-radius:50%; background:var(--nuevo); margin-right:6px; vertical-align:middle }
+  .mas { display:block; margin:22px auto 0; }
+  .acciones { position:absolute; right:8px; top:8px; display:flex; gap:6px; z-index:2 }
+  .acciones button { width:32px; height:32px; border-radius:50%; border:0; background:rgba(15,18,24,.78); color:#fff; font-size:15px; cursor:pointer }
+  .acciones button.on.fav { background:#e0b04a; color:#2a1e00 } .acciones button.on.desc { background:var(--suba) }
+  .b.opo { background:#3ecf8e; color:#062b1b } .b.viejo { background:#8b93a3; color:#0f1218 } .b.fav { background:#e0b04a; color:#2a1e00 }
+  .portales { display:flex; flex-direction:column; gap:4px; margin-top:8px }
+  .portales a { color:var(--acc) }
+  .vacio { padding:50px; text-align:center; color:var(--mu) }
+  .aviso { margin:10px 28px 0; padding:10px 14px; border-radius:10px; border:1px solid var(--suba); color:var(--suba); background:var(--panel) }
+  .nota { color:var(--mu); font-size:12.5px; padding:6px 28px 30px }
+  /* mapa */
+  #mapa { height:72vh; min-height:420px; border-radius:12px; border:1px solid var(--li); background:var(--panel2) }
+  .leaflet-popup-content-wrapper, .leaflet-popup-tip { background:var(--panel); color:var(--tx) }
+  .leaflet-popup-content { margin:10px; width:220px !important }
+  .pop img { width:100%; aspect-ratio:16/10; object-fit:cover; border-radius:8px; display:block; margin-bottom:6px }
+  .pop .p { font-weight:700; color:var(--acc); font-size:16px }
+  .pop button { margin-top:6px; width:100% }
+  .leyenda { display:flex; gap:14px; flex-wrap:wrap; color:var(--mu); font-size:12px; margin:0 0 10px }
+  .leyenda i { display:inline-block; width:10px; height:10px; border-radius:50%; margin-right:5px; vertical-align:middle }
+  /* novedades */
+  .ev { display:grid; grid-template-columns:96px 1fr auto; gap:14px; align-items:center; background:var(--panel); border:1px solid var(--li); border-radius:12px; padding:10px; margin-bottom:10px; cursor:pointer }
+  .ev .mini { width:96px; aspect-ratio:4/3; border-radius:8px; overflow:hidden; background:var(--panel2) }
+  .ev .mini img { width:100%; height:100%; object-fit:cover }
+  .ev .que { font-weight:700 } .ev .cuando { color:var(--mu); font-size:12px }
+  table { width:100%; border-collapse:collapse; background:var(--panel); border:1px solid var(--li); border-radius:12px; overflow:hidden }
+  th, td { text-align:left; padding:9px 12px; border-bottom:1px solid var(--li) } th { color:var(--mu); font-size:12px }
+  /* detalle */
+  .modal { position:fixed; inset:0; background:rgba(5,7,10,.78); display:none; align-items:center; justify-content:center; padding:20px; z-index:10 }
+  .modal.on { display:flex }
+  .caja { background:var(--panel); border:1px solid var(--li); border-radius:14px; width:min(980px, 100%); max-height:92vh; overflow:auto; position:relative }
+  .cerrar { position:absolute; right:12px; top:10px; z-index:2; background:rgba(0,0,0,.6); color:#fff; border:0; border-radius:50%; width:34px; height:34px; font-size:18px; cursor:pointer }
+  .galeria { position:relative; background:#000; aspect-ratio:16/9 }
+  .galeria img { width:100%; height:100%; object-fit:contain; display:block }
+  .galeria .flecha { position:absolute; top:50%; transform:translateY(-50%); background:rgba(0,0,0,.55); color:#fff; border:0; width:42px; height:42px; border-radius:50%; font-size:20px; cursor:pointer }
+  .galeria .izq { left:10px } .galeria .der { right:10px }
+  .galeria .num { position:absolute; right:12px; bottom:10px; background:rgba(0,0,0,.6); color:#fff; font-size:12px; padding:2px 8px; border-radius:6px }
+  .tiras { display:flex; gap:6px; overflow-x:auto; padding:8px 12px; background:var(--panel2) }
+  .tiras img { height:58px; aspect-ratio:4/3; object-fit:cover; border-radius:6px; cursor:pointer; opacity:.55; border:2px solid transparent }
+  .tiras img.on { opacity:1; border-color:var(--acc) }
+  .info { padding:16px 20px 22px; display:grid; grid-template-columns:1.2fr 1fr; gap:24px }
+  .info h2 { margin:0 0 4px; font-size:24px; color:var(--acc) }
+  .graf { color:var(--acc) } .graf .t { color:var(--mu); font-size:12px; margin-bottom:2px }
+  .btn { display:inline-block; background:var(--acc); color:#fff; text-decoration:none; padding:9px 14px; border-radius:8px; font-weight:600; margin-top:10px }
+  .otros a { color:var(--acc) }
+  @media (max-width: 760px) {
+    header, .filtros, main, .nota { padding-left:14px; padding-right:14px }
+    nav { margin:0 14px } .aviso { margin:10px 14px 0 }
+    .kpis { grid-template-columns:repeat(2, 1fr); padding:12px 14px }
+    .kpi b { font-size:19px }
+    .fila-chips { flex-wrap:nowrap; overflow-x:auto; padding-bottom:2px }
+    .fila-chips > label { min-width:auto }
+    .grid { grid-template-columns:1fr }
+    .fecha { text-align:left }
+    .filtros:not(.abierto) .extra-fila { display:none }
+    .toggle-filtros { display:inline-block !important }
+    .info { grid-template-columns:1fr }
+    .modal { padding:0 } .caja { max-height:100vh; height:100vh; border-radius:0 }
+    .ev { grid-template-columns:76px 1fr } .ev .mini { width:76px } .ev > :last-child { grid-column:1 / -1 }
+  }
+</style>
+</head>
+<body>
+<header>
+  <div><h1 id="titulo">Monitor Corredor Norte</h1><div class="sub" id="sub"></div></div>
+  <div class="fecha" id="fecha"></div>
+</header>
+<div id="alertas"></div>
+<div class="kpis" id="kpis"></div>
+<nav id="tabs"></nav>
+<div class="filtros" id="filtros"></div>
+<main id="main"></main>
+<div class="nota" id="nota"></div>
+<div class="modal" id="modal"><div class="caja" id="caja"></div></div>
+
+<script>
+const D = {"avisos": [], "precios": {}, "vistas": {}, "eventos": [{"fecha": "2026-11-20 11:54:43", "portal": "", "id": "", "tipo": "error", "antes": null, "despues": null, "texto": "Argenprop: Page.evaluate: TypeError: Failed to fetch\n    at e.<computed> (https://www.argenprop.com/departamentos/venta/belgrano/dolares-130000-370000?pagina-5:90:57872)\n    at eval (eval at evaluate (:302:30), <anonymous>:2:19)\n    at UtilityScript.evaluate (<anonymous>:309:18)\n    at UtilityScript.<anonymous> (<anonymous>:1:44) · Zonaprop: Page.evaluate: Target page, context or browser has been closed · MercadoLibre: Page.goto: net::ERR_ABORTED; maybe frame was detached?\nCall log:\n  - navigati"}], "corridas": [{"fecha": "2026-11-20 11:54:43", "portal": "mudafy", "ok": 0, "avisos": 0, "nota": "table avisos has no column named lat"}, {"fecha": "2026-11-20 11:53:21", "portal": "cabaprop", "ok": 0, "avisos": 0, "nota": "table avisos has no column named lat"}, {"fecha": "2026-11-20 11:51:27", "portal": "zonaprop", "ok": 0, "avisos": 0, "nota": "Page.evaluate: Target page, context or browser has been closed"}, {"fecha": "2026-11-20 11:51:27", "portal": "mercadolibre", "ok": 0, "avisos": 0, "nota": "Page.goto: net::ERR_ABORTED; maybe frame was detached?\nCall log:\n  - navigating to \"https://inmuebles.mercadolibre.com.ar/departamentos/venta/capital-federal/belgrano/_PriceRange_130000USD-370000USD\", waiting until \"domcontentloaded\"\n"}, {"fecha": "2026-11-20 11:50:41", "portal": "argenprop", "ok": 0, "avisos": 0, "nota": "Page.evaluate: TypeError: Failed to fetch\n    at e.<computed> (https://www.argenprop.com/departamentos/venta/belgrano/dolares-130000-370000?pagina-5:90:57872)\n    at eval (eval at evaluate (:302:30), <anonymous>:2:19)\n    at UtilityScript.evaluate (<anonymous>:309:18)\n    at UtilityScript.<anonymous"}], "cfg": {"precio_min": 150000, "precio_max": 350000, "precio_objetivo_max": 300000}, "zonas": [{"nombre": "Bajo Belgrano", "activa": true, "sub": []}, {"nombre": "Belgrano Barrancas", "activa": true, "sub": []}, {"nombre": "Núñez", "activa": true, "sub": []}, {"nombre": "Lomas de Núñez", "activa": true, "sub": []}, {"nombre": "Barrio River", "activa": true, "sub": []}, {"nombre": "Palermo Chico", "activa": true, "sub": []}, {"nombre": "Palermo Nuevo (Embajada)", "activa": true, "sub": []}, {"nombre": "La Isla", "activa": true, "sub": []}], "titulo": "Monitor Departamentos", "tipos": [{"nombre": "Casa", "activo": false}, {"nombre": "PH", "activo": false}, {"nombre": "Departamento", "activo": true}, {"nombre": "Terreno", "activo": false}], "generado": "2026-11-20 11:54:43"};
+const $ = (s) => document.querySelector(s);
+const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const fmt = (n) => n == null ? '—' : 'USD ' + Math.round(n).toLocaleString('es-AR');
+const corto = (n) => n == null ? '—' : n >= 1e6 ? (n / 1e6).toFixed(2).replace('.', ',') + 'M' : Math.round(n / 1000) + 'k';
+const C = D.cfg;
+if (D.titulo) { document.title = D.titulo; document.getElementById('titulo').textContent = D.titulo; }
+const guardar = (k, v) => { try { localStorage.setItem('monitor-' + k, JSON.stringify(v)); } catch (e) {} };
+const leer = (k, d) => { try { const v = localStorage.getItem('monitor-' + k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } };
+
+// ── datos derivados
+// Barrios a mostrar: cada barrio activo seguido de sus sub-barrios (Bajo Belgrano, Barrio River, etc.)
+const zonasActivas = D.zonas.filter((z) => z.activa).flatMap((z) => [z.nombre, ...(z.sub || [])]);
+const zonasDisponibles = D.zonas.filter((z) => !z.activa).map((z) => z.nombre);
+const tiposActivos = (D.tipos || []).filter((t) => t.activo).map((t) => t.nombre);
+const tiposDisponibles = (D.tipos || []).filter((t) => !t.activo).map((t) => t.nombre);
+const tipoDe = (a) => {
+  if ((D.tipos || []).some((t) => t.nombre === a.tipo)) return a.tipo;
+  const t = `${a.tipo || ''} ${a.url || ''}`.toLowerCase();
+  if (a.portal === 'mercadolibre') return /ph/.test(a.tipo || '') ? 'PH' : 'Casa';
+  if (/veclphin|\/ph-en-venta|ph-en-venta/.test(t)) return 'PH';
+  if (/veclcain|casa-en-venta/.test(t)) return 'Casa';
+  return /\bph\b/i.test(`${a.titulo} ${a.detalle}`) ? 'PH' : 'Casa';
+};
+for (const a of D.avisos) {
+  a.zona = a.barrio_vista || a.zona;
+  a.tipoNombre = tipoDe(a);
+  a.var = a.precio && a.precio_inicial ? (a.precio - a.precio_inicial) / a.precio_inicial : 0;
+  a.usdm2 = a.precio && a.m2 ? a.precio / a.m2 : null;
+  a.fotos = a.fotos || [];
+}
+for (const a of D.avisos) {
+  const vistos = new Set();
+  a.tambien_en = (a.tambien_en || []).filter((o) => !vistos.has(o.portal) && vistos.add(o.portal));
+  a.direccion = (a.direccion || '').replace(/\s+,/g, ',');
+}
+for (const a of D.avisos) if (a.grupo == null) a.grupo = a.k;
+const hoy = new Date(D.generado.slice(0, 10));
+for (const a of D.avisos) {
+  const desde = [a.publicado, (a.primera_vez || '').slice(0, 10)].filter(Boolean).sort()[0];
+  a.dias = desde ? Math.max(0, Math.round((hoy - new Date(desde)) / 864e5)) : null;
+  a.textoTodo = `${a.titulo || ''} ${a.detalle || ''} ${a.texto || ''}`.toLowerCase();
+  a.estrenar = /a estrenar|en pozo|pozo|preventa|emprendimiento|en construcci/.test(a.textoTodo);
+}
+// Misma propiedad en varios portales: se agrupan por 'grupo' (calculado al generar la web)
+const GRUPOS = {};
+for (const a of D.avisos) if (a.activo) (GRUPOS[a.grupo] ||= []).push(a);
+for (const a of D.avisos) {
+  const g = (GRUPOS[a.grupo] || [a]).filter((o) => o.k !== a.k);
+  const vistos = new Set([a.portal_nombre]);
+  a.tambien_en = g.filter((o) => !vistos.has(o.portal_nombre) && vistos.add(o.portal_nombre)).map((o) => ({ portal: o.portal_nombre, url: o.url, precio: o.precio }));
+  a.miembros = [a, ...g];
+}
+// Oportunidades: USD/m² bien por debajo de la mediana de su barrio y tipo
+const mediana = (xs) => { const v = xs.slice().sort((p, q) => p - q); return v.length ? v[Math.floor(v.length / 2)] : null; };
+// Se cuenta una vez cada propiedad (sin repetidos) y se exige un 25% por debajo, porque los portales
+// mezclan m² totales y cubiertos y eso abre mucho la dispersión.
+const refM2 = {}, contados = new Set();
+for (const a of D.avisos) if (a.activo && a.usdm2 && a.m2 >= 40 && !contados.has(a.grupo)) { contados.add(a.grupo); (refM2[a.zona + '|' + a.tipoNombre] ||= []).push(a.usdm2); }
+for (const a of D.avisos) {
+  const serie = refM2[a.zona + '|' + a.tipoNombre] || [];
+  const ref = serie.length >= 8 ? mediana(serie) : null;
+  a.refM2 = ref;
+  a.dif = ref && a.usdm2 && a.m2 >= 40 ? (a.usdm2 - ref) / ref : null;
+  a.oportunidad = a.dif != null && a.dif <= -0.25;
+}
+const esFav = (a) => (a.miembros || [a]).some((o) => FAV.has(o.k));
+const esDesc = (a) => (a.miembros || [a]).some((o) => DESC.has(o.k));
+const porK = Object.fromEntries(D.avisos.map((a) => [a.k, a]));
+const evPorK = {};
+for (const e of D.eventos) (evPorK[e.portal + '|' + e.id] ||= []).push(e);
+
+// Última visita en este dispositivo
+const ultimaVisita = leer('ultima-visita', null);
+guardar('ultima-visita', D.generado);
+const nuevoParaVos = (e) => ultimaVisita && e.fecha > ultimaVisita;
+
+// ── estado de la vista (se recuerda entre visitas)
+const S = Object.assign({
+  vista: 'avisos', barrios: zonasActivas, tipo: 'Todos', portal: 'Todos', rango: 'rango',
+  extra: ['unificar', 'sin-estrenar'], orden: 'precio-asc', texto: '', mostrar: 60,
+  amb: 0, dorm: 0, m2: 0, con: [], coleccion: 'todos', anios: 'todos',
+}, leer('estado', {}));
+if (!S.v2) { S.extra = [...new Set([...(S.extra || []), 'unificar', 'sin-estrenar'])]; S.v2 = true; }
+for (const k of ['con']) S[k] = S[k] || [];
+// Favoritos y descartados (se guardan en este dispositivo)
+const FAV = new Set(leer('favoritos', [])), DESC = new Set(leer('descartados', []));
+// Pasar favoritos entre dispositivos: un link con la lista en la parte "#" (no viaja a ningún servidor).
+let avisoSync = '';
+try {
+  const m = location.hash.match(/sync=([^&]+)/);
+  if (m) {
+    const d = JSON.parse(decodeURIComponent(escape(atob(decodeURIComponent(m[1])))));
+    (d.f || []).forEach((k) => FAV.add(k)); (d.d || []).forEach((k) => DESC.add(k));
+    guardar('favoritos', [...FAV]); guardar('descartados', [...DESC]);
+    avisoSync = 'Listo: ya tenés acá los favoritos y descartados de tu otro dispositivo.';
+    history.replaceState(null, '', location.pathname);
+  }
+} catch (e) { avisoSync = 'No se pudo leer el link de favoritos.'; }
+function linkSync() {
+  const datos = btoa(unescape(encodeURIComponent(JSON.stringify({ f: [...FAV], d: [...DESC] }))));
+  return location.origin + location.pathname + '#sync=' + encodeURIComponent(datos);
+}
+async function compartirFavoritos() {
+  const url = linkSync();
+  try {
+    if (navigator.share) { await navigator.share({ title: 'Mis favoritos del monitor', url }); return; }
+  } catch (e) { if (e && e.name === 'AbortError') return; }
+  try { await navigator.clipboard.writeText(url); alertaBreve('Link copiado. Abrilo en el otro dispositivo (mandátelo por WhatsApp o mail).'); }
+  catch (e) { prompt('Copiá este link y abrilo en el otro dispositivo:', url); }
+}
+function alertaBreve(t) {
+  const d = document.createElement('div'); d.className = 'aviso'; d.style.cssText = 'border-color:var(--baja);color:var(--baja)'; d.textContent = t;
+  $('#alertas').prepend(d); setTimeout(() => d.remove(), 7000);
+}
+S.barrios = (S.barrios || []).filter((b) => zonasActivas.includes(b));
+if (S.tipo !== 'Todos' && !(D.tipos || []).some((t) => t.activo && t.nombre === S.tipo)) S.tipo = 'Todos';
+if (!S.barrios.length) S.barrios = [...zonasActivas];
+S.mostrar = 60;
+
+const banda = (a) => !a.precio || a.precio < C.precio_min || a.precio > C.precio_max ? 'fuera' : a.precio <= C.precio_objetivo_max ? 'obj' : 'est';
+function pasa(a, ignorar) {
+  if (!a.activo && !S.extra.includes('despublicados')) return false;
+  if (ignorar !== 'barrios' && !S.barrios.includes(a.zona)) return false;
+  if (tiposDisponibles.includes(a.tipoNombre)) return false; // tipos apagados en la configuración
+  if (S.tipo !== 'Todos' && a.tipoNombre !== S.tipo) return false;
+  if (S.portal !== 'Todos' && a.portal_nombre !== S.portal) return false;
+  if (S.rango === 'rango' && banda(a) === 'fuera') return false;
+  if (S.rango === 'obj' && banda(a) !== 'obj') return false;
+  if (S.rango === 'est' && banda(a) !== 'est') return false;
+  if (S.extra.includes('reforma') && !a.reforma) return false;
+  if (S.extra.includes('baja') && !(a.var < 0)) return false;
+  if (S.extra.includes('fotos') && !a.fotos.length) return false;
+  if (S.extra.includes('sin-estrenar') && a.estrenar) return false;
+  if (S.extra.includes('oportunidad') && !a.oportunidad) return false;
+  if (S.extra.includes('viejos') && !(a.dias >= 90)) return false;
+  if (S.amb && !(a.ambientes >= S.amb)) return false;
+  if (S.dorm && !(a.dormitorios >= S.dorm)) return false;
+  if (S.m2 && !(a.m2 >= S.m2)) return false;
+  if (S.anios !== 'todos') {
+    const [desde, hasta] = ANIOS[S.anios];
+    if (a.anios == null || a.anios < desde || a.anios > hasta) return false;
+  }
+  for (const c of S.con) if (!CON[c].test(a.textoTodo)) return false;
+  if (S.coleccion === 'favoritos' && !esFav(a)) return false;
+  if (S.coleccion === 'descartados' ? !esDesc(a) : esDesc(a)) return false;
+  const t = S.texto.trim().toLowerCase();
+  if (t && !`${a.direccion} ${a.barrio} ${a.titulo} ${a.detalle} ${a.inmobiliaria}`.toLowerCase().includes(t)) return false;
+  return true;
+}
+// Antigüedad del edificio (sólo entran los avisos que la informan)
+const ANIOS = { 'nuevo': [0, 10], 'medio': [11, 30], 'viejo': [31, 50], 'muy-viejo': [51, 200] };
+const CON = {
+  'Pileta': /pileta|piscina|pool/, 'Cochera': /cochera|garage|garaje|coch\./, 'Jardín o patio': /jard[ií]n|patio|parque/,
+  'Terraza': /terraza|azotea|solarium/, 'Parrilla': /parrilla|quincho/, 'Lote propio': /lote propio|terreno propio|sin expensas/,
+  'Apto crédito': /apto cr[eé]dito/,
+};
+// Con "unificar", queda una tarjeta por propiedad: la más barata (y con más fotos si empatan).
+function unificar(lista) {
+  if (!S.extra.includes('unificar')) return lista;
+  const elegido = {};
+  for (const a of lista) {
+    const e = elegido[a.grupo];
+    if (!e || (a.precio ?? 9e9) < (e.precio ?? 9e9) || (a.precio === e.precio && a.fotos.length > e.fotos.length)) elegido[a.grupo] = a;
+  }
+  return lista.filter((a) => elegido[a.grupo] === a);
+}
+const ORDENES = {
+  'precio-asc': ['Precio ↑', (a, b) => (a.precio ?? 9e9) - (b.precio ?? 9e9)],
+  'precio-desc': ['Precio ↓', (a, b) => (b.precio ?? 0) - (a.precio ?? 0)],
+  'm2-desc': ['m² ↓', (a, b) => (b.m2 ?? 0) - (a.m2 ?? 0)],
+  'usdm2-asc': ['USD/m² ↑', (a, b) => (a.usdm2 ?? 9e9) - (b.usdm2 ?? 9e9)],
+  'baja': ['Mayor baja', (a, b) => a.var - b.var],
+  'recientes': ['Más nuevos', (a, b) => (b.primera_vez || '').localeCompare(a.primera_vez || '')],
+  'vistas': ['Más vistos', (a, b) => (b.vistas ?? -1) - (a.vistas ?? -1)],
+  'oportunidad': ['Más baratos por m² vs. su barrio', (a, b) => (a.dif ?? 9) - (b.dif ?? 9)],
+  'antiguedad': ['Más tiempo publicados', (a, b) => (b.dias ?? -1) - (a.dias ?? -1)],
+};
+
+// ── piezas
+function chips(label, opciones, actual, accion, multi) {
+  return `<div class="fila-chips"><label>${label}</label>` + opciones.map(([v, t, n]) => {
+    const on = multi ? actual.includes(v) : String(actual) === String(v);
+    return `<button class="chip ${on ? 'on' : ''}" data-a="${accion}" data-v="${esc(v)}">${esc(t)}${n != null ? `<span class="n">${n}</span>` : ''}</button>`;
+  }).join('') + '</div>';
+}
+function foto(a, cls = '') {
+  const u = a.fotos[0];
+  return u ? `<img loading="lazy" referrerpolicy="no-referrer" src="${esc(u)}" alt="" onerror="this.remove()">` : '<div class="sin">Sin foto</div>';
+}
+function badges(a) {
+  let b = `<span class="b">${a.tipoNombre}</span><span class="b">${esc(a.zona || '')}</span>`;
+  const evs = evPorK[a.k] || [];
+  if (a.var < 0) b += `<span class="b baja">Bajó ${(a.var * 100).toFixed(0)}%</span>`;
+  else if (a.var > 0) b += `<span class="b suba">Subió ${(a.var * 100).toFixed(0)}%</span>`;
+  if (evs.some((e) => e.tipo === 'nuevo')) b += '<span class="b nuevo">Nuevo</span>';
+  if (a.oportunidad) b += `<span class="b opo">m² ${Math.round(a.dif * 100)}% vs. barrio</span>`;
+  if (a.dias >= 90) b += `<span class="b viejo">Hace ${a.dias >= 365 ? Math.floor(a.dias / 365) + ' año' + (a.dias >= 730 ? 's' : '') : Math.round(a.dias / 30) + ' meses'}</span>`;
+  if (a.reforma) b += '<span class="b ref">A reformar</span>';
+  return b;
+}
+function tarjeta(a) {
+  const nuevo = (evPorK[a.k] || []).some(nuevoParaVos);
+  const feats = [a.m2 && `${a.m2} m²`, a.ambientes && `${a.ambientes} amb`, a.dormitorios && `${a.dormitorios} dorm`,
+    a.anios != null && (a.anios === 0 ? 'a estrenar' : `${a.anios} años`)].filter(Boolean);
+  return `<div class="card ${a.activo ? '' : 'inactivo'}" data-k="${esc(a.k)}">
+    <div class="foto">${foto(a)}<div class="badges">${badges(a)}</div>
+      <div class="acciones"><button class="fav ${esFav(a) ? 'on' : ''}" data-a="fav" data-v="${esc(a.k)}" title="Favorito">★</button><button class="desc ${esDesc(a) ? 'on' : ''}" data-a="desc" data-v="${esc(a.k)}" title="Descartar">✕</button></div>${a.fotos.length > 1 ? `<span class="nfotos">${a.fotos.length} fotos</span>` : ''}</div>
+    <div class="cuerpo">
+      <div class="precio">${nuevo ? '<span class="punto" title="Cambió desde tu última visita"></span>' : ''}${fmt(a.precio)}
+        ${a.var ? `<s>${fmt(a.precio_inicial)}</s>` : ''}</div>
+      <div class="dir">${esc(a.direccion || a.titulo)}</div>
+      ${feats.length ? `<div class="feats">${feats.map((f) => `<span class="feat">${f}</span>`).join('')}</div>` : ''}
+      ${a.tambien_en?.length ? `<div class="meta">${S.extra.includes('unificar') ? 'Publicado en ' + [a.portal_nombre, ...a.tambien_en.map((o) => o.portal)].join(', ') : 'También en ' + a.tambien_en.map((o) => o.portal).join(' y ')}</div>` : ''}
+      <div class="pie"><span>${a.portal_nombre}</span>
+        <span>${a.usdm2 ? `<b>${Math.round(a.usdm2).toLocaleString('es-AR')}</b> USD/m²` : ''}${a.vistas != null ? ` · ${a.vistas} vistas` : ''}</span></div>
+    </div></div>`;
+}
+
+function render() {
+  guardar('estado', { ...S, mostrar: undefined });
+  const act = unificar(D.avisos.filter((a) => pasa(a)));
+  const conPrecio = act.filter((a) => a.precio);
+  const conM2 = act.filter((a) => a.usdm2);
+  const prom = (xs, f) => xs.length ? xs.reduce((s, x) => s + f(x), 0) / xs.length : null;
+  const nov = D.eventos.filter((e) => nuevoParaVos(e) && porK[e.portal + '|' + e.id] && pasa(porK[e.portal + '|' + e.id]));
+
+  $('#sub').textContent = S.barrios.length === zonasActivas.length ? zonasActivas.join(', ') : S.barrios.join(', ');
+  $('#fecha').innerHTML = `Actualizado<br>${esc(D.generado.slice(0, 16))}`;
+  $('#kpis').innerHTML = [
+    ['Activas', act.length],
+    ['Precio promedio', 'USD ' + corto(prom(conPrecio, (a) => a.precio))],
+    ['USD/m² promedio', conM2.length ? Math.round(prom(conM2, (a) => a.usdm2)).toLocaleString('es-AR') : '—'],
+    [ultimaVisita ? 'Novedades desde tu visita' : 'Hasta ' + corto(C.precio_objetivo_max), ultimaVisita ? nov.length : act.filter((a) => banda(a) === 'obj').length],
+  ].map(([t, v]) => `<div class="kpi"><span>${t}</span><b>${v}</b></div>`).join('');
+
+  const evVisibles = D.eventos.filter((e) => porK[e.portal + '|' + e.id] && pasa({ ...porK[e.portal + '|' + e.id], activo: 1 }));
+  $('#tabs').innerHTML = [['avisos', 'Avisos', act.length], ['mapa', 'Mapa', null], ['novedades', 'Novedades', evVisibles.length], ['estado', 'Estado', null]]
+    .map(([v, t, n]) => `<button class="${S.vista === v ? 'on' : ''}" data-a="vista" data-v="${v}">${t}${n != null ? `<span class="cnt">${n}</span>` : ''}</button>`).join('');
+
+  const cuenta = (f) => unificar(D.avisos.filter((a) => pasa(a, 'barrios'))).filter(f).length;
+  const portales = [...new Set(D.avisos.map((a) => a.portal_nombre))];
+  $('#filtros').innerHTML = S.vista === 'estado' ? '' :
+    chips('Barrio', [['__todos', 'Todos'], ...zonasActivas.map((z) => [z, z, cuenta((a) => a.zona === z)]).filter((x) => x[2] > 0 || !D.zonas.some((z) => (z.sub || []).includes(x[0])))],
+      S.barrios.length === zonasActivas.length ? ['__todos', ...S.barrios] : S.barrios, 'barrio', true) +
+    chips('Tipo', [['Todos', 'Todos'], ...tiposActivos.map((t) => [t, t, cuenta((a) => a.tipoNombre === t)])], S.tipo, 'tipo') +
+    chips('Precio', [['rango', corto(C.precio_min) + ' a ' + corto(C.precio_max)], ['obj', 'Hasta ' + corto(C.precio_objetivo_max)], ['est', corto(C.precio_objetivo_max) + ' a ' + corto(C.precio_max)], ['Todos', 'Todos, también fuera de rango']], S.rango, 'rango') +
+    `<button class="chip toggle-filtros" data-a="mas-filtros">${$('#filtros').classList.contains('abierto') ? 'Menos filtros' : 'Más filtros y orden'}</button>` +
+    `<div class="extra-fila">` + chips('Portal', [['Todos', 'Todos'], ...portales.map((p) => [p, p])], S.portal, 'portal') + `</div><div>` +
+    chips('Ver', [['todos', 'Todos'], ['favoritos', `★ Favoritos`, new Set(D.avisos.filter((a) => a.activo && esFav(a)).map((a) => a.grupo)).size], ['descartados', 'Descartados', new Set(D.avisos.filter((a) => a.activo && esDesc(a)).map((a) => a.grupo)).size]], S.coleccion, 'coleccion').replace(/<\/div>$/, '<button class="chip" data-a="sync">⇄ Pasar favoritos a otro dispositivo</button></div>') + `</div><div class="extra-fila">` +
+    chips('Mostrar', [['oportunidad', 'Oportunidades'], ['baja', 'Bajaron de precio'], ['viejos', 'Publicados hace +90 días'], ['reforma', 'A reformar'],
+      ['unificar', 'Un aviso por propiedad'], ['sin-estrenar', 'Ocultar a estrenar y en pozo'], ['fotos', 'Con fotos'], ['despublicados', 'Despublicados']], S.extra, 'extra', true) + `</div><div class="extra-fila">` +
+    chips('Ambientes', [[0, 'Todos'], [3, '3+'], [4, '4+'], [5, '5+']], S.amb, 'amb') + `</div><div class="extra-fila">` +
+    chips('Dormitorios', [[0, 'Todos'], [2, '2+'], [3, '3+'], [4, '4+']], S.dorm, 'dorm') + `</div><div class="extra-fila">` +
+    chips('m² totales', [[0, 'Todos'], [100, '100+'], [150, '150+'], [200, '200+'], [300, '300+']], S.m2, 'm2') + `</div><div class="extra-fila">` +
+    chips('Antigüedad', [['todos', 'Todas'], ['nuevo', 'Hasta 10 años'], ['medio', '11 a 30'], ['viejo', '31 a 50'], ['muy-viejo', 'Más de 50'],
+      ].map(([v, t]) => [v, t, v === 'todos' ? null : cuenta((a) => a.anios != null && a.anios >= ANIOS[v][0] && a.anios <= ANIOS[v][1])]), S.anios, 'anios') + `</div><div class="extra-fila">` +
+    chips('Con', Object.keys(CON).map((c) => [c, c]), S.con, 'con', true) + `</div><div class="extra-fila">` +
+    (S.vista === 'avisos' ? chips('Ordenar', Object.entries(ORDENES).map(([k, [t]]) => [k, t]), S.orden, 'orden') : '') + `</div>` +
+    `<div class="fila-chips extra-fila"><label>Buscar</label><input class="buscar" id="buscar" placeholder="Calle, inmobiliaria, palabra…" value="${esc(S.texto)}"></div>`;
+
+  if (S.vista === 'avisos') {
+    act.sort(ORDENES[S.orden][1]);
+    $('#main').innerHTML = act.length
+      ? `<div class="grid">${act.slice(0, S.mostrar).map(tarjeta).join('')}</div>` +
+        (act.length > S.mostrar ? `<button class="chip mas" data-a="mas">Ver más (${act.length - S.mostrar})</button>` : '')
+      : '<div class="vacio">No hay avisos con estos filtros.</div>';
+  } else if (S.vista === 'mapa') {
+    pintarMapa(act);
+  } else if (S.vista === 'novedades') {
+    $('#main').innerHTML = evVisibles.length ? evVisibles.slice(0, 300).map(novedad).join('')
+      : '<div class="vacio">Todavía no hay novedades. Aparecen a partir de la segunda corrida.</div>';
+  } else {
+    const nombre = { argenprop: 'Argenprop', zonaprop: 'Zonaprop', mercadolibre: 'MercadoLibre' };
+    $('#main').innerHTML = '<table><tr><th>Fecha</th><th>Portal</th><th>Resultado</th><th>Avisos</th><th>Nota</th></tr>' +
+      D.corridas.map((c) => `<tr><td>${esc(c.fecha.slice(0, 16))}</td><td>${nombre[c.portal] || esc(c.portal)}</td><td style="color:var(--${c.ok ? 'baja' : 'suba'})">${c.ok ? 'OK' : 'Error'}</td><td>${c.avisos}</td><td>${esc(c.nota)}</td></tr>`).join('') + '</table>';
+  }
+  const sumar = [zonasDisponibles.length && `barrios ${zonasDisponibles.map(esc).join(', ')}`, tiposDisponibles.length && `tipos ${tiposDisponibles.map(esc).join(', ')}`].filter(Boolean);
+  $('#nota').innerHTML = sumar.length ? `Listos para sumar al monitor: ${sumar.join('; ')}. Pedíselo a Claude o cambiá <code>false</code> por <code>true</code> en config.json.` : '';
+  const b = $('#buscar');
+  if (b) b.oninput = (e) => { S.texto = e.target.value; clearTimeout(b._t); b._t = setTimeout(() => { render(); const n = $('#buscar'); n.focus(); n.setSelectionRange(n.value.length, n.value.length); }, 250); };
+}
+
+// ── mapa
+let MAPA = null;
+const colorDe = (a) => a.var < 0 ? '#3ecf8e' : (evPorK[a.k] || []).some((e) => e.tipo === 'nuevo') ? '#5b9cf5' : a.var > 0 ? '#f2705b' : '#c9ced8';
+function pintarMapa(lista) {
+  const con = lista.filter((a) => a.lat && a.lng);
+  const sin = lista.length - con.length;
+  $('#main').innerHTML = `<div class="leyenda"><span><i style="background:#3ecf8e"></i>Bajó de precio</span><span><i style="background:#5b9cf5"></i>Nuevo</span>
+    <span><i style="background:#f2705b"></i>Subió</span><span><i style="background:#c9ced8"></i>Sin cambios</span>
+    <span>${con.length} en el mapa${sin ? ` · ${sin} todavía sin ubicación` : ''}</span></div><div id="mapa"></div>`;
+  if (MAPA) { MAPA.remove(); MAPA = null; }
+  if (typeof L === 'undefined') { $('#mapa').innerHTML = '<div class="vacio">No se pudo cargar el mapa. Revisá la conexión y recargá.</div>'; return; }
+  MAPA = L.map('mapa', { scrollWheelZoom: true });
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+    maxZoom: 19, attribution: '&copy; OpenStreetMap &copy; CARTO' }).addTo(MAPA);
+  const pts = [];
+  for (const a of con) {
+    pts.push([a.lat, a.lng]);
+    L.circleMarker([a.lat, a.lng], { radius: 7, color: '#0f1218', weight: 1.5, fillColor: colorDe(a), fillOpacity: .95 })
+      .bindPopup(`<div class="pop">${a.fotos[0] ? `<img referrerpolicy="no-referrer" src="${esc(a.fotos[0])}" onerror="this.remove()">` : ''}
+        <div class="p">${fmt(a.precio)}${a.var ? ` <span class="var ${a.var < 0 ? 'baja' : 'suba'}">${(a.var * 100).toFixed(0)}%</span>` : ''}</div>
+        <div class="dir">${esc(a.direccion || a.titulo)}</div>
+        <div class="meta">${a.tipoNombre}${a.m2 ? ' · ' + a.m2 + ' m²' : ''} · ${a.portal_nombre}</div>
+        <button class="chip" data-k="${esc(a.k)}">Ver fotos y detalle</button></div>`)
+      .addTo(MAPA);
+  }
+  if (pts.length) MAPA.fitBounds(pts, { padding: [30, 30], maxZoom: 15 });
+  else MAPA.setView([-34.52, -58.48], 13);
+}
+
+const NOMBRE_EV = { nuevo: 'Nuevo', baja: 'Bajó', suba: 'Subió', vistas: 'Más vistas', despublicado: 'Despublicado', reaparecio: 'Volvió' };
+function novedad(e) {
+  const a = porK[e.portal + '|' + e.id];
+  let c = '';
+  if (e.tipo === 'baja' || e.tipo === 'suba') c = `${fmt(e.antes)} → <b>${fmt(e.despues)}</b> <span class="var ${e.tipo}">${((e.despues - e.antes) / e.antes * 100).toFixed(1)}%</span>`;
+  else if (e.tipo === 'vistas') c = `${e.antes} → <b>${e.despues}</b> vistas`;
+  else if (e.tipo === 'despublicado') c = `último precio ${fmt(e.antes)}`;
+  else c = `<b>${fmt(e.despues)}</b>${e.texto ? ' · ' + esc(e.texto) : ''}`;
+  return `<div class="ev" data-k="${esc(a.k)}"><div class="mini">${a.fotos[0] ? `<img loading="lazy" referrerpolicy="no-referrer" src="${esc(a.fotos[0])}" onerror="this.remove()">` : ''}</div>
+    <div><div class="que" style="color:var(--${e.tipo === 'baja' ? 'baja' : e.tipo === 'suba' || e.tipo === 'despublicado' ? 'suba' : 'acc'})">${nuevoParaVos(e) ? '<span class="punto"></span>' : ''}${NOMBRE_EV[e.tipo] || e.tipo}</div>
+      <div class="dir">${esc(a.direccion || a.titulo)}</div><div class="cuando">${esc(a.zona || '')} · ${a.portal_nombre} · ${esc(e.fecha.slice(0, 16))}</div></div>
+    <div>${c}</div></div>`;
+}
+
+// ── detalle con galería
+let G = { a: null, i: 0 };
+function grafico(serie, titulo, esPrecio) {
+  if (!serie || serie.length < 2) return '';
+  const W = 380, H = 80, P = 6, v = serie.map((s) => s[1]), mn = Math.min(...v), mx = Math.max(...v);
+  const x = (i) => P + i * (W - 2 * P) / (serie.length - 1), y = (n) => mx === mn ? H / 2 : H - P - (n - mn) / (mx - mn) * (H - 2 * P - 12);
+  const l = (n) => esPrecio ? fmt(n) : n;
+  return `<div class="graf"><div class="t">${titulo}: ${l(serie[0][1])} → ${l(serie.at(-1)[1])}</div><svg width="100%" viewBox="0 0 ${W} ${H}">
+    <polyline points="${serie.map((s, i) => `${x(i)},${y(s[1])}`).join(' ')}" fill="none" stroke="currentColor" stroke-width="2"/>
+    ${serie.map((s, i) => `<circle cx="${x(i)}" cy="${y(s[1])}" r="3" fill="currentColor"><title>${s[0]}: ${l(s[1])}</title></circle>`).join('')}</svg></div>`;
+}
+function abrir(k) {
+  const a = porK[k]; if (!a) return;
+  G = { a, i: 0 };
+  pintarDetalle();
+  $('#modal').classList.add('on');
+  document.body.style.overflow = 'hidden';
+}
+function pintarDetalle() {
+  const a = G.a, f = a.fotos, i = G.i;
+  const grande = (u) => u.replace('_u_small', '_u_large').replace('/360x266/', '/720x532/');
+  const evs = (evPorK[a.k] || []).map((e) => `<div class="meta">${esc(e.fecha.slice(0, 10))} · ${NOMBRE_EV[e.tipo] || e.tipo}${e.antes && e.despues ? `: ${fmt(e.antes)} → ${fmt(e.despues)}` : ''}</div>`).join('');
+  $('#caja').innerHTML = `<button class="cerrar" data-a="cerrar">×</button>
+    ${f.length ? `<div class="galeria"><img referrerpolicy="no-referrer" src="${esc(grande(f[i]))}" onerror="this.src='${esc(f[i])}'">
+      ${f.length > 1 ? `<button class="flecha izq" data-a="foto" data-v="-1">‹</button><button class="flecha der" data-a="foto" data-v="1">›</button><span class="num">${i + 1} / ${f.length}</span>` : ''}</div>
+      ${f.length > 1 ? `<div class="tiras">${f.map((u, j) => `<img referrerpolicy="no-referrer" loading="lazy" class="${j === i ? 'on' : ''}" src="${esc(u)}" data-a="ir" data-v="${j}">`).join('')}</div>` : ''}` : ''}
+    <div class="info"><div>
+      <h2>${fmt(a.precio)} ${a.var ? `<span class="var ${a.var < 0 ? 'baja' : 'suba'}">${(a.var * 100).toFixed(1)}%</span>` : ''}</h2>
+      <div class="dir">${esc(a.direccion || '')}</div>
+      <div class="meta">${a.tipoNombre} · ${esc(a.zona || '')} · ${a.portal_nombre}${a.inmobiliaria ? ' · ' + esc(a.inmobiliaria) : ''}</div>
+      <p>${esc(a.titulo || '')}</p>
+      <div class="feats">${[a.m2 && a.m2 + ' m²', a.ambientes && a.ambientes + ' amb', a.dormitorios && a.dormitorios + ' dorm', a.usdm2 && Math.round(a.usdm2).toLocaleString('es-AR') + ' USD/m²'].filter(Boolean).map((x) => `<span class="feat">${x}</span>`).join('')}</div>
+      <div class="meta" style="margin-top:8px">${esc(a.detalle || '')}</div>
+      ${a.oportunidad ? `<div class="meta" style="margin-top:8px;color:var(--baja)">USD/m² ${Math.round(a.dif * -100)}% por debajo de la mediana de ${esc(a.tipoNombre)} en ${esc(a.zona)} (${Math.round(a.refM2).toLocaleString('es-AR')} USD/m²)</div>` : ''}
+      ${a.miembros.length > 1 ? `<div class="portales"><div class="meta">Publicado en ${a.miembros.length} avisos:</div>${a.miembros.map((o) => `<a href="${esc(o.url)}" target="_blank" rel="noopener">${o.portal_nombre}: ${fmt(o.precio)}${o.inmobiliaria ? ' · ' + esc(o.inmobiliaria) : ''} ↗</a>`).join('')}</div>`
+        : `<a class="btn" href="${esc(a.url)}" target="_blank" rel="noopener">Ver en ${a.portal_nombre} ↗</a>`}
+      <div style="margin-top:12px;display:flex;gap:8px"><button class="chip ${esFav(a) ? 'on' : ''}" data-a="fav" data-v="${esc(a.k)}">★ ${esFav(a) ? 'En favoritos' : 'Favorito'}</button>
+        <button class="chip ${esDesc(a) ? 'on' : ''}" data-a="desc" data-v="${esc(a.k)}">✕ ${esDesc(a) ? 'Descartado' : 'Descartar'}</button></div>
+    </div><div>
+      <div class="meta">Publicado a ${fmt(a.precio_inicial)}${a.dias != null ? ` · hace ${a.dias} días` : ''} · lo sigo desde ${esc((a.primera_vez || '').slice(0, 10))}${a.antiguedad ? ' · ' + esc(a.antiguedad) : ''}${a.vistas != null ? ' · ' + a.vistas + ' visualizaciones' : ''}</div>
+      ${grafico(D.precios[a.k], 'Precio', true)}${grafico(D.vistas[a.k], 'Visualizaciones', false)}
+      ${evs ? `<div style="margin-top:10px">${evs}</div>` : ''}
+    </div></div>`;
+}
+function cerrar() { $('#modal').classList.remove('on'); document.body.style.overflow = ''; }
+
+document.addEventListener('click', (e) => {
+  const el = e.target.closest('[data-a]');
+  if (el) {
+    const a = el.dataset.a, v = el.dataset.v;
+    if (a === 'vista') { S.vista = v; S.mostrar = 60; }
+    else if (a === 'barrio') {
+      if (v === '__todos') S.barrios = S.barrios.length === zonasActivas.length ? [] : [...zonasActivas];
+      else if (S.barrios.length === zonasActivas.length) S.barrios = [v];
+      else S.barrios = S.barrios.includes(v) ? S.barrios.filter((b) => b !== v) : [...S.barrios, v];
+      if (!S.barrios.length) S.barrios = v === '__todos' ? [...zonasActivas] : [v];
+    }
+    else if (a === 'tipo') S.tipo = v; else if (a === 'portal') S.portal = v; else if (a === 'rango') S.rango = v;
+    else if (a === 'orden') S.orden = v;
+    else if (a === 'amb' || a === 'dorm' || a === 'm2') S[a] = +v;
+    else if (a === 'con') S.con = S.con.includes(v) ? S.con.filter((x) => x !== v) : [...S.con, v];
+    else if (a === 'coleccion') S.coleccion = v;
+    else if (a === 'anios') S.anios = v;
+    else if (a === 'fav' || a === 'desc') {
+      const set = a === 'fav' ? FAV : DESC, otro = a === 'fav' ? DESC : FAV;
+      const miembros = (porK[v]?.miembros || [porK[v]]).map((o) => o.k);
+      const estaba = miembros.some((k) => set.has(k));
+      for (const k of miembros) { estaba ? set.delete(k) : set.add(k); if (!estaba) otro.delete(k); }
+      guardar('favoritos', [...FAV]); guardar('descartados', [...DESC]);
+      if ($('#modal').classList.contains('on')) pintarDetalle();
+      return render();
+    }
+    else if (a === 'extra') S.extra = S.extra.includes(v) ? S.extra.filter((x) => x !== v) : [...S.extra, v];
+    else if (a === 'mas') { S.mostrar += 60; }
+    else if (a === 'cerrar') return cerrar();
+    else if (a === 'sync') { compartirFavoritos(); return; }
+    else if (a === 'mas-filtros') { $('#filtros').classList.toggle('abierto'); return render(); }
+    else if (a === 'foto') { G.i = (G.i + +v + G.a.fotos.length) % G.a.fotos.length; return pintarDetalle(); }
+    else if (a === 'ir') { G.i = +v; return pintarDetalle(); }
+    if (a !== 'mas' && a !== 'vista') S.mostrar = 60;
+    return render();
+  }
+  const card = e.target.closest('[data-k]');
+  if (card && !e.target.closest('a')) return abrir(card.dataset.k);
+  if (e.target.id === 'modal') cerrar();
+});
+document.addEventListener('keydown', (e) => {
+  if (!$('#modal').classList.contains('on')) return;
+  if (e.key === 'Escape') cerrar();
+  if (G.a && G.a.fotos.length > 1 && (e.key === 'ArrowRight' || e.key === 'ArrowLeft')) { G.i = (G.i + (e.key === 'ArrowRight' ? 1 : -1) + G.a.fotos.length) % G.a.fotos.length; pintarDetalle(); }
+});
+const ultimas = {}; for (const c of D.corridas) if (!(c.portal in ultimas)) ultimas[c.portal] = c;
+const caidos = Object.values(ultimas).filter((c) => !c.ok);
+if (caidos.length) $('#alertas').innerHTML = caidos.map((c) => `<div class="aviso">No se pudo leer ${esc(c.portal)} en la última corrida (${esc(c.fecha.slice(0, 16))}): ${esc(c.nota)}</div>`).join('');
+render();
+if (avisoSync) alertaBreve(avisoSync);
+</script>
+</body>
+</html>
